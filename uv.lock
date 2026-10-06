@@ -890,6 +890,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "python-dotenv" },
     { name = "sqlmodel" },
+    { name = "tenacity" },
 ]
 
 [package.metadata]
@@ -898,6 +899,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=2.25.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "sqlmodel", specifier = ">=0.0.47" },
+    { name = "tenacity", specifier = ">=9.1.4" },
 ]
 
 [[package]]
