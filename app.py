@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
-from models import Chat, QueryRequest
+from models import Chat, QueryRequest, Message, Thread,Roles
 from database import create_db_and_tables, get_session, engine
 from sqlmodel import Session
 
@@ -102,3 +102,75 @@ async def get_status(
         raise HTTPException(status_code=404, detail="chat withb specified id does not exist")
     
     return{"id" : task_id, "question" : chat.question, "answer" : chat.answer}
+
+@app.post("/chat/new_thread")
+async def chat_with_history(
+    message : str,
+    session : Session = Depends(get_session),
+):
+    thread = Thread()
+
+    session.add(thread)
+    session.commit()
+    session.refresh(thread)
+
+    chat = client.aio.chats.create(
+        model = MODEL_NAME
+    )
+
+    response = await chat.send_message(message)
+
+    message1 = Message(thread_id = thread.id,roles = Roles.user, content=message)
+
+    message2 = Message(thread_id = thread.id,roles = Roles.model, content=response.text)
+
+    session.add(message1)
+    session.add(message2)
+
+    session.commit()
+
+    return {"thread_id" : thread.id, "user_message" : message, "model_response" : response.text}
+
+
+@app.post("/chat/{thread_id}")
+async def chat_with_history(
+    thread_id : int,
+    message : str,
+    session : Session = Depends(get_session),
+):
+    thread = session.get(Thread,thread_id)
+
+    if not thread :
+        raise HTTPException(status_code=404,detail="No thread associated with given thread id")
+    
+    formatted_history = []
+
+    for msg in thread.messages:
+
+        role_string = msg.roles.value
+
+        formatted_history.append(
+            types.Content(
+                role=role_string,
+                parts= [types.Part.from_text(text=msg.content)]
+            )
+        )
+
+    chat = client.aio.chats.create(
+        model = MODEL_NAME,
+        history=formatted_history
+    )
+
+    response = await chat.send_message(message)
+
+    message1 = Message(thread_id = thread_id,roles = Roles.user, content=message)
+
+    message2 = Message(thread_id = thread_id,roles = Roles.model, content=response.text)
+
+    session.add(message1)
+    session.add(message2)
+
+    session.commit()
+
+    return {"thread_id" : thread_id, "user_message" : message, "model_response" : response.text}
+
