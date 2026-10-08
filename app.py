@@ -11,6 +11,8 @@ from tenacity import retry, wait_exponential, stop_after_attempt
 from google.genai import types
 from tools import get_stock_price
 
+import numpy as np
+
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
@@ -173,4 +175,125 @@ async def chat_with_history(
     session.commit()
 
     return {"thread_id" : thread_id, "user_message" : message, "model_response" : response.text}
+
+knowledge_base = []
+
+
+def smart_chunker(text : str, max_size : int = 250) -> list[str]:
+    sentences = text.split('. ')
+    curr_chunk = ""
+    chunks = []
+
+    for sentence in sentences:
+
+        if not sentence.endswith('.'):
+            sentence = sentence.strip() + '.'
+
+        if len(curr_chunk) + len(sentence) < max_size :
+            curr_chunk += " " + sentence
+
+        else :
+            
+            if curr_chunk.strip():
+                chunks.append(curr_chunk.strip())
+
+            curr_chunk = sentence
+    
+    if curr_chunk.strip():
+        chunks.append(curr_chunk.strip())
+
+    return chunks
+    
+
+
+@app.post("/upload_knowledge")
+async def upload_knowledge(
+    text : str
+):
+    if not text.strip():
+        raise HTTPException(status_code=404, detail="Knowledge can't be empty")
+    
+    chunks = smart_chunker(text=text)
+
+    result = await client.aio.models.embed_content(
+        model="gemini-embedding-001",
+        contents=chunks
+    )
+
+    for i, chunk in enumerate(chunks):
+
+        knowledge_base.append({
+            "chunk" : chunk,
+            "embedding" : result.embeddings[i].values
+        })
+
+    return {
+        "message" : f"Successfully uploaded {len(chunks)} chunks",
+        "knowledge_base_size" : len(knowledge_base)
+    }
+
+@app.post("/ask-from-knowledge")
+async def ask_from_knowledge(
+    question : str
+):
+    
+    if not knowledge_base : 
+        raise HTTPException(status_code=400, detail="Knowledge is not provided yet, knowledge base is empty.")
+    
+    if not question.strip():
+        raise HTTPException(status_code=404, detail="Question can't be empty.")
+    
+    question_result = await client.aio.models.embed_content(
+        model = "gemini-embedding-001",
+        contents=question
+    )
+
+    question_vector = question_result.embeddings[0].values
+
+    # best_score = -1
+    # best_chunk = "" 
+
+    # for item in knowledge_base :
+
+    #     chunk_vector = item["embedding"]
+
+    #     score = np.dot(question_vector, chunk_vector)
+
+    #     if score > best_score:
+    #         best_chunk = item["chunk"]
+    #         best_score = score
+
+        
+    score_list = []
+
+    for item in knowledge_base:
+
+        score = np.dot(question_vector,item["embedding"])
+        score_list.append((score,item["chunk"]))
+
+    score_list.sort(key=lambda x : x[0], reverse=True)
+
+    top_3 = score_list[:3]
+
+    combined_context = "\n---\n".join([chunk for score, chunk in top_3])
+
+    prompt = f"""
+    System/Instruction: You are an expert assistant. Answer the user's question STRICTLY using ONLY the provided context. 
+    If the answer is not in the context, say "I don't have enough information". Do not use outside knowledge.
+
+    Context: {combined_context}
+
+    Question: {question}
+    """
+
+    response = await client.aio.models.generate_content(
+        model=MODEL_NAME,
+        contents=prompt
+    )
+
+    return{
+        "answer" : response.text,
+        "context" : combined_context
+    }
+
 

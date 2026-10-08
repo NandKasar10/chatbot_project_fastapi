@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.142.1",
     "google-genai>=2.25.0",
+    "numpy>=2.5.3",
     "python-dotenv>=1.2.3",
     "sqlmodel>=0.0.47",
     "tenacity>=9.1.4",

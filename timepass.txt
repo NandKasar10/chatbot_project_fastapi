@@ -1,0 +1,10 @@
+Rohit Sharma holds several batting records which include most runs in T20 Internationals, most sixes in international cricket, most double centuries in ODI cricket (three), most centuries at Cricket World Cups (seven) and joint most centuries in Twenty20 Internationals (five). He also holds the world record for the highest individual score (264) in a One Day International (ODI) and also holds the record for scoring most centuries (five) in a single Cricket World Cup, for which he won the ICC Men's ODI Cricketer of the Year award in 2019. He is the first and only captain to lead a team in all ICC tournament finals.
+
+prompt = f"""
+    System/Instruction: You are an expert assistant. Answer the user's question STRICTLY using ONLY the provided context. 
+    If the answer is not in the context, say "I don't have enough information". Do not use outside knowledge.
+
+    Context: {combined_context}
+
+    Question: {question}
+    """
